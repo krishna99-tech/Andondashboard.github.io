@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Industrial Reliability Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Prop-types is required by many Recharts builds -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Recharts with specific version compatible with global UMD -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-[#94a3b8] p-2 select-none h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+            LabelList
+        } = Recharts;
+
+        // --- Mock Data Generation ---
+        const MOCK_MONTHLY_DATA = [
+            { month: 'Jan-23', failures: 5, mttf: 120, mttr: 2.1, mtbf: 122.1 },
+            { month: 'Feb-23', failures: 8, mttf: 90, mttr: 1.8, mtbf: 91.8 },
+            { month: 'Mar-23', failures: 35, mttf: 100, mttr: 1.7, mtbf: 101.7 },
+            { month: 'Apr-23', failures: 12, mttf: 280, mttr: 1.2, mtbf: 281.2 },
+            { month: 'May-23', failures: 65, mttf: 35, mttr: 3.5, mtbf: 38.5 },
+            { month: 'Jun-23', failures: 55, mttf: 50, mttr: 2.9, mtbf: 52.9 },
+            { month: 'Jul-23', failures: 15, mttf: 210, mttr: 1.4, mtbf: 211.4 },
+            { month: 'Aug-23', failures: 48, mttf: 55, mttr: 2.8, mtbf: 57.8 },
+            { month: 'Sep-23', failures: 47, mttf: 58, mttr: 2.6, mtbf: 60.6 },
+            { month: 'Oct-23', failures: 12, mttf: 220, mttr: 1.1, mtbf: 221.1 },
+            { month: 'Nov-23', failures: 22, mttf: 110, mttr: 1.9, mtbf: 111.9 },
+            { month: 'Dec-23', failures: 28, mttf: 95, mttr: 2.2, mtbf: 97.2 },
+        ];
+
+        const MOCK_DAILY_DATA = Array.from({ length: 31 }, (_, i) => ({
+            date: `${i + 1}/03`,
+            failures: Math.floor(Math.random() * 4),
+            mttf: Math.floor(Math.random() * 120),
+            mttr: parseFloat((Math.random() * 3).toFixed(1)),
+            mtbf: Math.floor(Math.random() * 125)
+        }));
+
+        const SidebarMetric = ({ label, value, unit = "", id, activeParams = [] }) => {
+            const isActive = activeParams.includes(id);
+            return (
+                <div className={`border-2 p-2 mb-1.5 shadow-sm flex-grow flex flex-col justify-center transition-all duration-300 ${
+                    isActive ? 'bg-yellow-50 border-blue-500 scale-105 z-10' : 'bg-white border-blue-200'
+                }`}>
+                    <p className="text-[11px] font-bold text-gray-600 uppercase leading-tight">
+                        {label} {unit && `(${unit})`}
+                    </p>
+                    <p className={`text-4xl font-black text-center ${isActive ? 'text-blue-800' : 'text-red-700'}`}>
+                        {value}
+                    </p>
+                </div>
+            );
+        };
+
+        const ChartContainer = ({ title, children }) => (
+            <div className="bg-[#cbd5e1] border-2 border-gray-400 p-0.5 pt-1.5 flex flex-col h-full shadow-inner rounded-sm overflow-hidden">
+                <div className="flex justify-center mb-0.5">
+                    <div className="flex items-center gap-2 bg-white px-3 py-0.5 border border-blue-300 rounded-full shadow-sm">
+                        <div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.7)]"></div>
+                        <h3 className="text-[9px] font-black text-blue-900 uppercase tracking-widest">{title}</h3>
+                    </div>
+                </div>
+                <div className="flex-grow w-full h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        {children}
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [param1, setParam1] = useState('failures');
+            const [param2, setParam2] = useState('mttf');
+            const [fromDate, setFromDate] = useState('2023-03-01');
+            const [toDate, setToDate] = useState('2023-03-31');
+            const [metrics, setMetrics] = useState({
+                operatingTime: 3632,
+                downTime: 55,
+                failureCount: 33,
+                mttr: 1.7,
+                mtbf: 110.1,
+                mttf: 108.4
+            });
+
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setMetrics(prev => ({ ...prev, operatingTime: prev.operatingTime + (1/3600) }));
+                }, 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const labels = {
+                failures: 'No. of Failure',
+                mttr: 'MTTR',
+                mttf: 'MTTF',
+                mtbf: 'MTBF'
+            };
+
+            return (
+                <div className="bg-[#cbd5e1] border-2 border-black p-1 shadow-2xl h-full flex flex-col">
+                    <div className="flex justify-center mb-1">
+                        <div className="w-full bg-[#1e293b] text-white text-center font-black py-2 text-xl border-b-4 border-blue-600 shadow-lg uppercase tracking-[0.15em] flex items-center justify-center gap-4 rounded-b-lg">
+                            DEVICE RELIABILITY PERFORMANCE
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 flex-grow overflow-hidden">
+                        <div className="col-span-2 flex flex-col h-full bg-slate-200/50 p-1 border border-slate-400/50 rounded-sm">
+                            <div className="bg-blue-900 text-white text-[10px] font-bold p-1 mb-1.5 text-center uppercase tracking-widest rounded-t-sm">Current Stats</div>
+                            <SidebarMetric label="Operating Time" unit="Hrs." value={metrics.operatingTime.toFixed(0)} id="op" />
+                            <SidebarMetric label="Down Time" unit="Hrs." value={metrics.downTime} id="dt" />
+                            <SidebarMetric label="No. of Failures" value={metrics.failureCount} id="failures" activeParams={[param1, param2]} />
+                            <SidebarMetric label="MTTR" unit="Hrs." value={metrics.mttr.toFixed(1)} id="mttr" activeParams={[param1, param2]} />
+                            <SidebarMetric label="MTBF" unit="Hrs." value={metrics.mtbf.toFixed(1)} id="mtbf" activeParams={[param1, param2]} />
+                            <SidebarMetric label="MTTF" unit="Hrs." value={metrics.mttf.toFixed(1)} id="mttf" activeParams={[param1, param2]} />
+                        </div>
+                        <div className="col-span-10 flex flex-col h-full">
+                            <div className="grid grid-cols-4 gap-3 mb-2 bg-slate-400/40 p-2 border border-slate-500/50 rounded-sm shadow-sm">
+                                <div className="flex items-center bg-[#fef3c7] border border-gray-400 px-3 py-1 text-[11px] font-bold shadow-sm rounded-sm h-10">
+                                    <span className="bg-gray-800 text-white px-2 py-0.5 mr-3 -ml-3">PARM 1</span>
+                                    <select className="bg-transparent outline-none w-full" value={param1} onChange={(e) => setParam1(e.target.value)}>
+                                        <option value="failures">{labels.failures}</option>
+                                        <option value="mttr">{labels.mttr}</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center bg-[#fef3c7] border border-gray-400 px-3 py-1 text-[11px] font-bold shadow-sm rounded-sm h-10">
+                                    <span className="bg-gray-800 text-white px-2 py-0.5 mr-3 -ml-3">PARM 2</span>
+                                    <select className="bg-transparent outline-none w-full" value={param2} onChange={(e) => setParam2(e.target.value)}>
+                                        <option value="mttf">{labels.mttf}</option>
+                                        <option value="mtbf">{labels.mtbf}</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center bg-[#fef3c7] border border-gray-400 px-3 py-1 text-[11px] font-bold shadow-sm rounded-sm h-10">
+                                    <span className="bg-gray-800 text-white px-2 py-0.5 mr-3 -ml-3">FROM</span>
+                                    <input type="date" className="bg-transparent outline-none w-full" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                                </div>
+                                <div className="flex items-center bg-[#fef3c7] border border-gray-400 px-3 py-1 text-[11px] font-bold shadow-sm rounded-sm h-10">
+                                    <span className="bg-gray-800 text-white px-2 py-0.5 mr-3 -ml-3">TO</span>
+                                    <input type="date" className="bg-transparent outline-none w-full" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 flex-grow overflow-hidden pb-1">
+                                <ChartContainer title={`Daily ${labels[param1]} Trend`}>
+                                    <BarChart data={MOCK_DAILY_DATA} margin={{ top: 15, right: 5, left: -30, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" />
+                                        <XAxis dataKey="date" tick={{fontSize: 8, fontWeight: 'bold'}} interval={2} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{fontSize: 9, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <Tooltip />
+                                        <Bar dataKey={param1} fill="#2563eb">
+                                            <LabelList dataKey={param1} position="top" style={{ fontSize: '9px', fontWeight: 'bold', fill: '#1e3a8a' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ChartContainer>
+                                <ChartContainer title={`Monthly ${labels[param1]} Trend`}>
+                                    <BarChart data={MOCK_MONTHLY_DATA} margin={{ top: 15, right: 5, left: -25, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" />
+                                        <XAxis dataKey="month" tick={{fontSize: 8, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{fontSize: 9, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <Tooltip />
+                                        <Bar dataKey={param1} fill="#1d4ed8">
+                                            <LabelList dataKey={param1} position="top" style={{ fontSize: '9px', fontWeight: 'bold', fill: '#1e3a8a' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ChartContainer>
+                                <ChartContainer title={`Daily ${labels[param2]} Trend`}>
+                                    <BarChart data={MOCK_DAILY_DATA} margin={{ top: 15, right: 5, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" />
+                                        <XAxis dataKey="date" tick={{fontSize: 8, fontWeight: 'bold'}} interval={2} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{fontSize: 9, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <Tooltip />
+                                        <Bar dataKey={param2} fill="#3b82f6">
+                                            <LabelList dataKey={param2} position="top" style={{ fontSize: '9px', fontWeight: 'bold', fill: '#1e3a8a' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ChartContainer>
+                                <ChartContainer title={`Monthly ${labels[param2]} Trend`}>
+                                    <BarChart data={MOCK_MONTHLY_DATA} margin={{ top: 15, right: 5, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" />
+                                        <XAxis dataKey="month" tick={{fontSize: 8, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{fontSize: 9, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                        <Tooltip />
+                                        <Bar dataKey={param2} fill="#60a5fa">
+                                            <LabelList dataKey={param2} position="top" style={{ fontSize: '9px', fontWeight: 'bold', fill: '#1e3a8a' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ChartContainer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+  </html>
